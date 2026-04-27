@@ -123,7 +123,9 @@ fn cleanup() {
     std::process::exit(0);
 }
 
-fn startMenu(points:Vec<i32>) -> i16 {
+fn start_menu(points:Vec<i32>) -> i16 {
+    execute!(stdout(),cursor::MoveTo(0,5));
+
     println!(" ███████████ ██████████ ███████████ ███████████   █████  █████████ 
 ▒█▒▒▒███▒▒▒█▒▒███▒▒▒▒▒█▒█▒▒▒███▒▒▒█▒▒███▒▒▒▒▒███ ▒▒███  ███▒▒▒▒▒███
 ▒   ▒███  ▒  ▒███  █ ▒ ▒   ▒███  ▒  ▒███    ▒███  ▒███ ▒███    ▒▒▒ 
@@ -132,6 +134,31 @@ fn startMenu(points:Vec<i32>) -> i16 {
     ▒███     ▒███ ▒   █    ▒███     ▒███    ▒███  ▒███  ███    ▒███
     █████    ██████████    █████    █████   █████ █████▒▒█████████ 
    ▒▒▒▒▒    ▒▒▒▒▒▒▒▒▒▒    ▒▒▒▒▒    ▒▒▒▒▒   ▒▒▒▒▒ ▒▒▒▒▒  ▒▒▒▒▒▒▒▒▒  ");
+  
+    loop {
+        if poll(Duration::from_millis(50)).unwrap() {
+            if let Event::Key(key_event) = read().unwrap() {
+                match key_event.kind {
+                    KeyEventKind::Press => {
+                        match key_event.code {
+                            KeyCode::Char('a') | KeyCode::Char('h') | KeyCode::Left => {
+                                println!("wo");    
+                            }
+                            KeyCode::Char('d') | KeyCode::Char('l') | KeyCode::Right => {
+                                println!("w");     
+                            }
+                            _ => {}
+
+                        }
+                    }
+                    KeyEventKind::Release => {}
+                    _ => {}
+                }
+            }
+        }
+
+    }
+ 
     32
 }
 
@@ -149,7 +176,7 @@ fn main() {
     );
     
     let mut points:Vec<i32> = vec![10,12,100];
-    startMenu(points);
+    start_menu(points);
 
     let mut board: [[bool; BOARDWIDTH as usize]; BOARDHEIGHT as usize] = [[false; BOARDWIDTH as usize]; BOARDHEIGHT as usize];
     
@@ -164,7 +191,7 @@ fn main() {
                     ];
     
     let time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().subsec_nanos();
-    let random_int = (time % 7) as usize; 
+    let random_int = (time % 7) as usize;
     
     let mut current_piece = MovingTetromino {tetromino: tetrominos[random_int], coords: (27,2)};
 
@@ -172,6 +199,9 @@ fn main() {
     let mut ticks_on_ground = 1;
     let mut debug_mode: bool = false;
     
+
+
+
     loop {
         if debug_mode {
             queue!(
@@ -230,6 +260,10 @@ fn main() {
                                     current_piece = rotate_right(current_piece);
                                 }
                             },
+                            KeyCode::Char('r') | KeyCode::Char('R')  => {
+                                //reset("TODO")    
+                            },
+
                             KeyCode::End => {
                                 board = place_piece_in_board(board,current_piece);
                                 debug_mode = !debug_mode; 
@@ -255,7 +289,6 @@ fn main() {
 
         ticks += 1;
 
-
         if ticks >= 10 {
             ticks = 0;
             if check_valid_board(board,current_piece,0,1) {
@@ -280,7 +313,7 @@ fn main() {
         }
     }
 }
-fn makeBag() -> [Tetromino;8]{
+fn make_bag() -> [Tetromino;8] {
     let tetrominos = [Tetromino::new_i(), 
                     Tetromino::new_j(),
                     Tetromino::new_t(),
