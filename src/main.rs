@@ -58,7 +58,6 @@ impl Tetromino {
             Color::Magenta,
         )
     }
-
     pub fn new_i() -> Self {
         Self::from_vector(
             vec![
@@ -76,7 +75,6 @@ impl Tetromino {
             Color::Blue,
         )
     }
-
     pub fn new_o() -> Self {
         Self::from_vector(vec![vec![1, 1], vec![1, 1]], Color::Yellow)
     }
@@ -169,40 +167,39 @@ fn main() {
         terminal::SetSize(48, 36)
     );
 
-    let mut points: Vec<i32> = vec![10, 12, 100];
+    // let mut points: Vec<i32> = vec![10, 12, 100];
     // start_menu(points);
 
     let mut board: Vec<Vec<Option<Color>>> =
-        vec![vec![Some(Color::White); BOARDWIDTH as usize]; BOARDHEIGHT as usize];
+        vec![vec![None; BOARDWIDTH as usize]; BOARDHEIGHT as usize];
 
     let tetrominos = [
         Tetromino::new_i(),
         Tetromino::new_j(),
-        Tetromino::new_t(),
-        Tetromino::new_t(),
         Tetromino::new_l(),
         Tetromino::new_o(),
         Tetromino::new_s(),
+        Tetromino::new_t(),
         Tetromino::new_z(),
     ];
 
     let mut current_piece = MovingTetromino {
-        tetromino: tetrominos[random_u32(7) as usize].clone(),
+        tetromino: tetrominos[random_u32(6) as usize].clone(),
         coords: (PIECESTARTX, 2),
     };
 
-    let mut ticks = 1;
-    let mut ticks_on_ground = 1;
+    let mut ticks = 0;
+    let mut ticks_on_ground = 0;
     let mut debug_mode: bool = false;
+
+    let mut has_held_piece: bool = false;
 
     let mut bag = make_bag();
 
     let mut held_piece: Option<Tetromino> = None;
     let mut held_piece_board: Vec<Vec<Option<Color>>> = vec![vec![None; 6]; 6];
 
-    let mut next_pieces_board: Vec<Vec<Option<Color>>> = vec![vec![None; 6]; 6];
-    let mut ghost_board: Vec<Vec<Option<Color>>> =
-        vec![vec![None; BOARDWIDTH as usize]; BOARDHEIGHT as usize];
+    let mut next_pieces_board: Vec<Vec<Option<Color>>> = vec![vec![None; 6]; 20];
 
     loop {
         if debug_mode {
@@ -216,7 +213,9 @@ fn main() {
             );
             stdout.flush();
         }
-        let mut saved_y = current_piece.coords.0;
+        let mut saved_y = current_piece.coords.1;
+        let mut ghost_board: Vec<Vec<Option<Color>>> =
+            vec![vec![None; BOARDWIDTH as usize]; BOARDHEIGHT as usize];
 
         while check_valid_board(&board, &current_piece, 0, 1) {
             current_piece.coords.1 += 1;
@@ -282,10 +281,33 @@ fn main() {
         draw_board(&held_piece_board, 2, 2);
         stdout.flush();
 
+        // TODO THIS DOESNT WORK,
+        // SEEMS LIKE ITS SOMETHING WRONG WITHT THE LOOP NOT RUNNING??
         // This is for drawing the upcoming pieces
+        let mut iter = 0;
+        for i in ((bag.len() - 1)..(bag.len() - 3)).rev() {
+            let mut piece_tmp: MovingTetromino = MovingTetromino {
+                tetromino: bag[i].clone(),
+                coords: (37, iter),
+            };
+            iter += 1;
+            next_pieces_board = place_piece_in_board(&next_pieces_board, &piece_tmp, 36, 2)
+        }
+        //
+        // next_pieces_board = place_piece_in_board(
+        //     &next_pieces_board,
+        //     &MovingTetromino {
+        //         tetromino: bag[bag.len() - 1].clone(),
+        //         coords: (37, 3),
+        //     },
+        //     36,
+        //     2,
+        // );
 
         draw_board(&next_pieces_board, 36, 2);
         stdout.flush();
+        // to reset the board
+        next_pieces_board = vec![vec![None; 6]; 20];
 
         if poll(Duration::from_millis(50)).unwrap() {
             if let Event::Key(key_event) = read().unwrap() {
@@ -316,33 +338,42 @@ fn main() {
                                 //reset("TODO")
                             }
                             KeyCode::Char('c') => {
-                                if held_piece.is_some() {
-                                    let mut temp: Option<Tetromino>;
-                                    temp = held_piece.clone();
-                                    held_piece = Some(current_piece.tetromino.clone());
-                                    current_piece = MovingTetromino {
-                                        tetromino: temp.expect("something with held piece").clone(),
-                                        coords: (PIECESTARTX, 2),
-                                    }
-                                } else {
-                                    held_piece = Some(current_piece.tetromino.clone());
-
-                                    let mut rand_mino: Tetromino;
-
-                                    loop {
-                                        let mut random_tetromino = bag.pop();
-                                        match random_tetromino {
-                                            Some(mino) => {
-                                                rand_mino = mino;
-                                                break;
-                                            }
-                                            None => bag = make_bag(),
+                                if !has_held_piece {
+                                    has_held_piece = true;
+                                    if held_piece.is_some() {
+                                        let mut temp: Option<Tetromino>;
+                                        temp = held_piece.clone();
+                                        held_piece = Some(current_piece.tetromino.clone());
+                                        current_piece = MovingTetromino {
+                                            tetromino: temp
+                                                .expect("something with held piece")
+                                                .clone(),
+                                            coords: (PIECESTARTX, 2),
                                         }
+                                    } else {
+                                        held_piece = Some(current_piece.tetromino.clone());
+
+                                        let mut rand_mino: Tetromino;
+
+                                        loop {
+                                            let mut random_tetromino = bag.pop();
+                                            match random_tetromino {
+                                                Some(mino) => {
+                                                    rand_mino = mino;
+
+                                                    if bag.len() < 4 {
+                                                        bag = append_to_bag(&bag);
+                                                    }
+                                                    break;
+                                                }
+                                                None => bag = make_bag(),
+                                            }
+                                        }
+                                        current_piece = MovingTetromino {
+                                            tetromino: rand_mino,
+                                            coords: (PIECESTARTX, 2),
+                                        };
                                     }
-                                    current_piece = MovingTetromino {
-                                        tetromino: rand_mino,
-                                        coords: (PIECESTARTX, 2),
-                                    };
                                 }
                             }
 
@@ -391,6 +422,9 @@ fn main() {
                 match random_tetromino {
                     Some(mino) => {
                         rand_mino = mino;
+                        if bag.len() < 4 {
+                            bag = append_to_bag(&bag)
+                        }
                         break;
                     }
                     None => bag = make_bag(),
@@ -398,22 +432,22 @@ fn main() {
             }
 
             board = place_piece_in_board(&board, &current_piece, BOARDX, BOARDY);
+            board = clear_lines(board);
 
             current_piece = MovingTetromino {
                 tetromino: rand_mino,
                 coords: (PIECESTARTX, 2),
             };
-            //if !check_valid_board(board,MovingTetromino {tetromino: tetrominos[1], shape: (,2)},0,0) {
-            //    cleanup();
-            //}
+            // if !check_valid_board(&board,&MovingTetromino {tetromino: current_piece.tetromino.clone(),coords: (PIECESTARTX, 3),},0,0,) {cleanup();}
             ticks_on_ground = 0;
+            has_held_piece = false;
         }
     }
 }
 
 fn draw_board(board: &Vec<Vec<Option<Color>>>, board_x: u16, board_y: u16) {
-    let board_height: u16 = board[0].len() as u16;
-    let board_width: u16 = board.len() as u16;
+    let board_height: u16 = board.len() as u16;
+    let board_width: u16 = board[0].len() as u16;
     let mut stdout = stdout();
 
     for by in board_y..(board_height + board_y) {
@@ -442,7 +476,6 @@ fn make_bag() -> Vec<Tetromino> {
         Tetromino::new_i(),
         Tetromino::new_j(),
         Tetromino::new_t(),
-        Tetromino::new_t(),
         Tetromino::new_l(),
         Tetromino::new_o(),
         Tetromino::new_s(),
@@ -450,7 +483,7 @@ fn make_bag() -> Vec<Tetromino> {
     ];
 
     let mut new_vec = Vec::with_capacity(list_of_tetrominos.len());
-    let mut random = random_u32(list_of_tetrominos.len() as u32);
+    let mut random = random_u32(list_of_tetrominos.len() as u32 - 1);
 
     while list_of_tetrominos.len() > 1 {
         new_vec.push(list_of_tetrominos[random as usize].clone());
@@ -459,6 +492,17 @@ fn make_bag() -> Vec<Tetromino> {
     }
     new_vec
 }
+
+fn append_to_bag(bag: &Vec<Tetromino>) -> Vec<Tetromino> {
+    let mut bag_tmp: Vec<Tetromino> = bag.clone();
+    let mut new_bag = make_bag();
+
+    for tetromino in new_bag {
+        bag_tmp.insert(0, tetromino)
+    }
+    bag_tmp
+}
+
 fn random_u32(end: u32) -> u32 {
     let time = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -480,16 +524,14 @@ fn place_piece_in_board(
     let piece_y: u16 = piece.coords.1;
     let piece_shape = piece.tetromino.shape.clone();
 
-    for x in piece_x..(piece_x - 1 + piece_shape[0].len() as u16) {
-        for y in piece_y..(piece_y - 1 + piece_shape.len() as u16) {
+    for x in piece_x..(piece_x + piece_shape[0].len() as u16) {
+        for y in piece_y..(piece_y + piece_shape.len() as u16) {
             if piece_shape[(y - piece_y) as usize][(x - piece_x) as usize] {
                 tmp_board[(y - board_y) as usize][(x - board_x) as usize] =
                     Some(piece.tetromino.color);
             }
         }
     }
-    tmp_board = clear_lines(tmp_board);
-
     tmp_board
 }
 
