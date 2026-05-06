@@ -107,12 +107,13 @@ struct MovingTetromino {
     coords: (u16, u16),
 }
 
-fn cleanup() {
+fn cleanup(og_term_size: (u16, u16)) {
     execute!(
         stdout(),
         cursor::Show,
         terminal::LeaveAlternateScreen,
-        style::ResetColor
+        style::ResetColor,
+        terminal::SetSize(og_term_size.0, og_term_size.1)
     )
     .unwrap();
     disable_raw_mode().unwrap();
@@ -163,6 +164,8 @@ fn main() {
     stdout.execute(Hide).unwrap();
     stdout.execute(Clear(ClearType::All)).unwrap();
 
+    let mut original_size = crossterm::terminal::size().unwrap();
+
     queue!(
         stdout,
         cursor::Hide,
@@ -203,7 +206,7 @@ fn main() {
     let mut held_piece_board: Vec<Vec<Option<Color>>> =
         vec![vec![None; HELDBOARDWIDTH as usize]; HELDBOARDHEIGHT as usize];
 
-    let mut next_pieces_board: Vec<Vec<Option<Color>>> = vec![vec![None; 6]; 20];
+    let mut next_pieces_board: Vec<Vec<Option<Color>>> = vec![vec![None; 6]; 16];
 
     loop {
         if debug_mode {
@@ -272,11 +275,6 @@ fn main() {
         }
         stdout.flush();
 
-        // for i in BOARDX..(BOARDWIDTH + BOARDX) {
-        //     queue!(stdout, cursor::MoveTo(i, BOARDHEIGHT + BOARDY));
-        //     stdout.queue(Print("▔"));
-        // }
-
         // This is for drawing held piece
         if held_piece.is_some() {
             held_piece_board = vec![vec![None; HELDBOARDWIDTH as usize]; HELDBOARDHEIGHT as usize];
@@ -297,7 +295,7 @@ fn main() {
         for i in 0..5 {
             let mut piece_tmp: MovingTetromino = MovingTetromino {
                 tetromino: bag[i].clone(),
-                coords: (37, i as u16 * 4 + 3),
+                coords: (37, i as u16 * 3 + 3),
             };
             next_pieces_board = place_piece_in_board(&next_pieces_board, &piece_tmp, 36, 2)
         }
@@ -305,7 +303,7 @@ fn main() {
         draw_board(&next_pieces_board, 36, 2);
         stdout.flush();
         // to reset the board
-        next_pieces_board = vec![vec![None; 6]; 20];
+        next_pieces_board = vec![vec![None; 6]; 16];
         bag.reverse();
 
         if poll(Duration::from_millis(50)).unwrap() {
@@ -390,7 +388,9 @@ fn main() {
                                     current_piece.coords.1 += 1
                                 }
                             }
-                            KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Esc => cleanup(),
+                            KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Esc => {
+                                cleanup(original_size)
+                            }
                             _ => {}
                         }
                     }
@@ -542,7 +542,7 @@ fn clear_lines(board: Vec<Vec<Option<Color>>>) -> Vec<Vec<Option<Color>>> {
             .iter()
             .all(|&item| item.is_some())
         {
-            board_tmp[board.len() - 1] = vec![None; 10];
+            board_tmp[board.len() - 1] = vec![None; board[0].len() - 1];
 
             for i in 1..(board.len()) {
                 board_tmp_tmp[i] = board_tmp[(i - 1)].clone();
