@@ -23,13 +23,16 @@ use std::io::{Write, stdout};
 use std::thread::sleep;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-const BOARDHEIGHT: u16 = 16;
+const BOARDHEIGHT: u16 = 20;
 const BOARDWIDTH: u16 = 10;
 const BOARDX: u16 = 25;
 const BOARDY: u16 = 2;
 const PIECESTARTX: u16 = BOARDX + (BOARDWIDTH / 2);
 
-static CHARLEN: u16 = 2;
+const HELDBOARDHEIGHT: u16 = 4;
+const HELDBOARDWIDTH: u16 = 6;
+const HELDBOARDX: u16 = 15;
+const HELDBOARDY: u16 = 3;
 
 #[derive(Clone, Debug)]
 struct Tetromino {
@@ -197,7 +200,8 @@ fn main() {
     let mut bag = make_bag();
 
     let mut held_piece: Option<Tetromino> = None;
-    let mut held_piece_board: Vec<Vec<Option<Color>>> = vec![vec![None; 6]; 6];
+    let mut held_piece_board: Vec<Vec<Option<Color>>> =
+        vec![vec![None; HELDBOARDWIDTH as usize]; HELDBOARDHEIGHT as usize];
 
     let mut next_pieces_board: Vec<Vec<Option<Color>>> = vec![vec![None; 6]; 20];
 
@@ -256,58 +260,53 @@ fn main() {
                         Print("▮")
                     );
                 } else {
-                    stdout.queue(Print("."));
+                    stdout.queue(Print(" "));
                 }
                 stdout.queue(ResetColor);
             }
             stdout.queue(Print("|"));
         }
+        for i in BOARDX..(BOARDWIDTH + BOARDX) {
+            queue!(stdout, cursor::MoveTo(i, BOARDHEIGHT + BOARDY));
+            stdout.queue(Print("▔"));
+        }
         stdout.flush();
+
+        // for i in BOARDX..(BOARDWIDTH + BOARDX) {
+        //     queue!(stdout, cursor::MoveTo(i, BOARDHEIGHT + BOARDY));
+        //     stdout.queue(Print("▔"));
+        // }
 
         // This is for drawing held piece
         if held_piece.is_some() {
-            held_piece_board = vec![vec![None; 6]; 6];
+            held_piece_board = vec![vec![None; HELDBOARDWIDTH as usize]; HELDBOARDHEIGHT as usize];
             held_piece_board = place_piece_in_board(
                 &held_piece_board,
                 &MovingTetromino {
                     tetromino: held_piece.clone().expect("wtf"),
-                    coords: (3, 3),
+                    coords: (HELDBOARDX + 1, HELDBOARDY + 1),
                 },
-                2,
-                2,
+                HELDBOARDX,
+                HELDBOARDY,
             );
         }
-
-        draw_board(&held_piece_board, 2, 2);
+        draw_board(&held_piece_board, HELDBOARDX, HELDBOARDY);
         stdout.flush();
 
-        // TODO THIS DOESNT WORK,
-        // SEEMS LIKE ITS SOMETHING WRONG WITHT THE LOOP NOT RUNNING??
-        // This is for drawing the upcoming pieces
-        let mut iter = 0;
-        for i in ((bag.len() - 1)..(bag.len() - 3)).rev() {
+        bag.reverse();
+        for i in 0..5 {
             let mut piece_tmp: MovingTetromino = MovingTetromino {
                 tetromino: bag[i].clone(),
-                coords: (37, iter),
+                coords: (37, i as u16 * 4 + 3),
             };
-            iter += 1;
             next_pieces_board = place_piece_in_board(&next_pieces_board, &piece_tmp, 36, 2)
         }
-        //
-        // next_pieces_board = place_piece_in_board(
-        //     &next_pieces_board,
-        //     &MovingTetromino {
-        //         tetromino: bag[bag.len() - 1].clone(),
-        //         coords: (37, 3),
-        //     },
-        //     36,
-        //     2,
-        // );
 
         draw_board(&next_pieces_board, 36, 2);
         stdout.flush();
         // to reset the board
         next_pieces_board = vec![vec![None; 6]; 20];
+        bag.reverse();
 
         if poll(Duration::from_millis(50)).unwrap() {
             if let Event::Key(key_event) = read().unwrap() {
@@ -361,7 +360,7 @@ fn main() {
                                                 Some(mino) => {
                                                     rand_mino = mino;
 
-                                                    if bag.len() < 4 {
+                                                    if bag.len() < 5 {
                                                         bag = append_to_bag(&bag);
                                                     }
                                                     break;
@@ -422,7 +421,7 @@ fn main() {
                 match random_tetromino {
                     Some(mino) => {
                         rand_mino = mino;
-                        if bag.len() < 4 {
+                        if bag.len() < 5 {
                             bag = append_to_bag(&bag)
                         }
                         break;
@@ -462,7 +461,7 @@ fn draw_board(board: &Vec<Vec<Option<Color>>>, board_x: u16, board_y: u16) {
                 )));
                 stdout.queue(Print("▮"));
             } else {
-                stdout.queue(Print("."));
+                stdout.queue(Print(" "));
             }
             stdout.queue(ResetColor);
         }
@@ -537,14 +536,13 @@ fn place_piece_in_board(
 
 fn clear_lines(board: Vec<Vec<Option<Color>>>) -> Vec<Vec<Option<Color>>> {
     let mut board_tmp = board.to_vec();
-    let mut score: u16 = 0;
     if board[board.len() - 1].iter().all(|&item| item.is_some()) {
         let mut board_tmp_tmp = vec![vec![None; board[0].len()]; board.len()];
         while board_tmp[board.len() - 1]
             .iter()
             .all(|&item| item.is_some())
         {
-            board_tmp[15] = vec![None; 10];
+            board_tmp[board.len() - 1] = vec![None; 10];
 
             for i in 1..(board.len()) {
                 board_tmp_tmp[i] = board_tmp[(i - 1)].clone();
@@ -559,7 +557,7 @@ fn clear_lines(board: Vec<Vec<Option<Color>>>) -> Vec<Vec<Option<Color>>> {
 
 fn shift_down_board(board: Vec<Vec<Option<Color>>>, amount: u16) -> Vec<Vec<Option<Color>>> {
     // TODO
-    return vec![vec![None; 10]; 10];
+    vec![vec![None; 10]; 10]
 }
 
 fn check_valid_board(
@@ -593,10 +591,14 @@ fn check_valid_board(
         }
         let mut tmp_piece = piece.clone();
         tmp_piece.coords = (upiece_x, upiece_y);
-        let board_with_placed_piece =
-            place_piece_in_board(&vec![vec![None; 10]; 16], &tmp_piece, BOARDX, BOARDY);
-        for x in 0..10 {
-            for y in 0..16 {
+        let board_with_placed_piece = place_piece_in_board(
+            &vec![vec![None; BOARDWIDTH as usize]; BOARDHEIGHT as usize],
+            &tmp_piece,
+            BOARDX,
+            BOARDY,
+        );
+        for x in 0..(BOARDWIDTH as usize) {
+            for y in 0..(BOARDHEIGHT as usize) {
                 if board_with_placed_piece[y][x].is_some() && board[y][x].is_some() {
                     return false;
                 }
