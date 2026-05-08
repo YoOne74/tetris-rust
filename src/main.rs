@@ -535,24 +535,24 @@ fn place_piece_in_board(
 }
 
 fn clear_lines(board: Vec<Vec<Option<Color>>>) -> Vec<Vec<Option<Color>>> {
-    let mut board_tmp = board.to_vec();
-    if board[board.len() - 1].iter().all(|&item| item.is_some()) {
-        let mut board_tmp_tmp = vec![vec![None; board[0].len()]; board.len()];
-        while board_tmp[board.len() - 1]
-            .iter()
-            .all(|&item| item.is_some())
-        {
-            board_tmp[board.len() - 1] = vec![None; board[0].len() - 1];
+    let mut board_copy = board.to_vec();
+    let mut i = 0;
 
-            for i in 1..(board.len()) {
-                board_tmp_tmp[i] = board_tmp[(i - 1)].clone();
+    let mut board_tmp_tmp = vec![vec![None; board[0].len()]; board.len()];
+
+    for row in &board {
+        i += 1;
+        if row.iter().all(|&item| item.is_some()) {
+            for j in 1..i {
+                board_tmp_tmp[j] = board_copy[(j - 1)].clone();
             }
-
-            board_tmp = board_tmp_tmp.clone()
         }
-        return board_tmp_tmp;
     }
-    board
+    if board_tmp_tmp == vec![vec![None; board[0].len()]; board.len()] {
+        board
+    } else {
+        board_tmp_tmp
+    }
 }
 
 fn shift_down_board(board: Vec<Vec<Option<Color>>>, amount: u16) -> Vec<Vec<Option<Color>>> {
