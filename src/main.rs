@@ -208,18 +208,25 @@ fn main() {
 
     let mut next_pieces_board: Vec<Vec<Option<Color>>> = vec![vec![None; 6]; 16];
 
+    let mut score: u16 = 0;
+    let mut level: u16 = 1;
+    let mut lines_cleared: u16 = 0;
+
+    let mut gravity: f32 = 0.01667;
+    let mut actual_x: f32 = 3.0;
+
     loop {
-        if debug_mode {
-            queue!(
-                stdout,
-                terminal::Clear(terminal::ClearType::All),
-                cursor::MoveTo(1, 1),
-                style::Print(format!("current_piece X: {}", current_piece.coords.0)),
-                cursor::MoveTo(1, 2),
-                style::Print(format!("current_piece Y: {}", current_piece.coords.1)),
-            );
-            stdout.flush();
-        }
+        queue!(
+            stdout,
+            cursor::MoveTo(BOARDX, (BOARDY + BOARDHEIGHT + 1)),
+            style::Print(format!("Score: {}", score)),
+            cursor::MoveTo(BOARDX, (BOARDY + BOARDHEIGHT + 2)),
+            style::Print(format!("Level: {}", level)),
+            cursor::MoveTo(BOARDX, (BOARDY + BOARDHEIGHT + 3)),
+            style::Print(format!("lines_cleared: {}", lines_cleared)),
+        );
+
+        // this draws the ghost piece
         let mut saved_y = current_piece.coords.1;
         let mut ghost_board: Vec<Vec<Option<Color>>> =
             vec![vec![None; BOARDWIDTH as usize]; BOARDHEIGHT as usize];
@@ -306,7 +313,7 @@ fn main() {
         next_pieces_board = vec![vec![None; 6]; 16];
         bag.reverse();
 
-        if poll(Duration::from_millis(50)).unwrap() {
+        if poll(Duration::from_millis(1000 / 60)).unwrap() {
             if let Event::Key(key_event) = read().unwrap() {
                 match key_event.kind {
                     KeyEventKind::Press => {
@@ -401,12 +408,14 @@ fn main() {
         }
 
         ticks += 1;
+        gravity = calculate_gravity(&level);
+        actual_x += gravity;
 
-        if ticks >= 10 {
-            ticks = 0;
+        while actual_x.floor() - 1.0 > 0.0 {
             if check_valid_board(&board, &current_piece, 0, 1) {
                 current_piece.coords.1 += 1;
             }
+            actual_x -= actual_x.floor() - 1.0
         }
 
         if !check_valid_board(&board, &current_piece, 0, 1) {
@@ -431,6 +440,7 @@ fn main() {
             }
 
             board = place_piece_in_board(&board, &current_piece, BOARDX, BOARDY);
+            score += calculate_score(&board, &mut level, &mut lines_cleared);
             board = clear_lines(board);
 
             current_piece = MovingTetromino {
@@ -535,29 +545,53 @@ fn place_piece_in_board(
 }
 
 fn clear_lines(board: Vec<Vec<Option<Color>>>) -> Vec<Vec<Option<Color>>> {
-    let mut board_copy = board.to_vec();
-    let mut i = 0;
-
-    let mut board_tmp_tmp = vec![vec![None; board[0].len()]; board.len()];
-
-    for row in &board {
-        i += 1;
+    let mut board_copy = board.clone();
+    for (i, row) in board.iter().enumerate() {
         if row.iter().all(|&item| item.is_some()) {
-            for j in 1..i {
-                board_tmp_tmp[j] = board_copy[(j - 1)].clone();
+            board_copy[i] = vec![None; board[0].len()];
+            board_copy[0..(i + 1)].rotate_right(1);
+        }
+    }
+    board_copy
+}
+
+fn calculate_score(
+    board: &Vec<Vec<Option<Color>>>,
+    level: &mut u16,
+    lines_cleared: &mut u16,
+) -> u16 {
+    let mut lines: u16 = 0;
+    for (i, row) in board.iter().enumerate() {
+        if row.iter().all(|&item| item.is_some()) {
+            lines += 1;
+            *lines_cleared += 1;
+            if *lines_cleared >= 10 {
+                *level += 1;
+                *lines_cleared = 0;
             }
         }
     }
-    if board_tmp_tmp == vec![vec![None; board[0].len()]; board.len()] {
-        board
-    } else {
-        board_tmp_tmp
+
+    match lines {
+        1 => return *level * 100,
+        2 => return *level * 300,
+        3 => return *level * 500,
+        4 => return *level * 800,
+        _ => {}
     }
+    0
 }
 
-fn shift_down_board(board: Vec<Vec<Option<Color>>>, amount: u16) -> Vec<Vec<Option<Color>>> {
-    // TODO
-    vec![vec![None; 10]; 10]
+fn calculate_gravity(level: &u16) -> f32 {
+    let gravity_list = [
+        0.01667, 0.021017, 0.026977, 0.035256, 0.04693, 0.06361, 0.0879, 0.1236, 0.1775, 0.2598,
+        0.388, 0.59, 0.92, 1.46, 2.36, 3.91, 6.61, 11.43, 20.23, 36.6,
+    ];
+    if *level <= 20 {
+        gravity_list[(*level - 1) as usize]
+    } else {
+        36.6
+    }
 }
 
 fn check_valid_board(
