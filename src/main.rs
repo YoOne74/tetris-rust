@@ -18,6 +18,7 @@ use crossterm::{
     terminal::{Clear, ClearType, disable_raw_mode, enable_raw_mode},
 };
 
+use std::collections::HashMap;
 use std::convert::TryInto;
 use std::io::{Write, stdout};
 use std::thread::sleep;
@@ -120,8 +121,29 @@ fn cleanup(og_term_size: (u16, u16)) {
     std::process::exit(0);
 }
 
-fn start_menu(points: Vec<i32>) -> i16 {
-    execute!(stdout(), cursor::MoveTo(0, 5));
+fn start_menu(points: HashMap<&str, u16>, original_size: (u16, u16)) -> i16 {
+    let mut stdout = stdout();
+    execute!(stdout, cursor::MoveTo(0, 5));
+
+    // 2. Convert HashMap to a Vector of tuples (String, u16)
+    let mut sorted_list: Vec<(String, u16)> = Vec::new();
+    for (key, value) in points {
+        sorted_list.push((key.to_string(), value));
+    }
+
+    // 3. Manual Bubble Sort Implementation
+    let n = sorted_list.len();
+    for i in 0..n {
+        for j in 0..n - i - 1 {
+            // Compare the u16 values (index 1 of the tuple)
+            if sorted_list[j].1 > sorted_list[j + 1].1 {
+                // Manual swap without using built-in slice::swap
+                let temp = sorted_list[j].clone();
+                sorted_list[j] = sorted_list[j + 1].clone();
+                sorted_list[j + 1] = temp;
+            }
+        }
+    }
 
     println!(
         " ███████████ ██████████ ███████████ ███████████   █████  █████████ 
@@ -134,6 +156,19 @@ fn start_menu(points: Vec<i32>) -> i16 {
    ▒▒▒▒▒    ▒▒▒▒▒▒▒▒▒▒    ▒▒▒▒▒    ▒▒▒▒▒   ▒▒▒▒▒ ▒▒▒▒▒  ▒▒▒▒▒▒▒▒▒  "
     );
 
+    execute!(stdout, cursor::MoveTo(25, 14), Print("High scores:"));
+    let mut i = 0;
+    sorted_list.reverse();
+    for (name, score) in &sorted_list {
+        stdout.queue(MoveTo(26, (i as u16 + 16)));
+        stdout.queue(Print(format!("{}:{}", name, score)));
+        i += 1;
+        if i == 5 {
+            break;
+        }
+    }
+    stdout.flush();
+
     loop {
         if poll(Duration::from_millis(50)).unwrap() {
             if let Event::Key(key_event) = read().unwrap() {
@@ -144,6 +179,9 @@ fn start_menu(points: Vec<i32>) -> i16 {
                         }
                         KeyCode::Char('d') | KeyCode::Char('l') | KeyCode::Right => {
                             println!("w");
+                        }
+                        KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Esc => {
+                            cleanup(original_size)
                         }
                         _ => {}
                     },
@@ -173,8 +211,15 @@ fn main() {
         terminal::SetSize(48, 36)
     );
 
-    // let mut points: Vec<i32> = vec![10, 12, 100];
-    // start_menu(points);
+    let mut high_scores = HashMap::from([
+        ("me", 10),
+        ("you", 12),
+        ("dla", 100),
+        (":3", 1233),
+        ("trams", 1222),
+        ("kys", 13),
+    ]);
+    start_menu(high_scores, original_size);
 
     let mut board: Vec<Vec<Option<Color>>> =
         vec![vec![None; BOARDWIDTH as usize]; BOARDHEIGHT as usize];
@@ -209,7 +254,7 @@ fn main() {
     let mut next_pieces_board: Vec<Vec<Option<Color>>> = vec![vec![None; 6]; 16];
 
     let mut score: u16 = 0;
-    let mut level: u16 = 1;
+    let mut level: u16 = 8;
     let mut lines_cleared: u16 = 0;
 
     let mut gravity: f32 = 0.01667;
